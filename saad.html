@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>تخزين فواتير</title>
+</head>
+<body dir="rtl">
+  <h2>إضافة فاتورة</h2>
+  <input type="text" id="year" placeholder="السنة (مثلاً 2025)">
+  <input type="text" id="month" placeholder="الشهر (مثلاً 07)">
+  <input type="text" id="day" placeholder="اليوم (مثلاً 08)">
+  <input type="text" id="name" placeholder="اسم الفاتورة (مثلاً invoice1.txt)">
+  <br><br>
+  <textarea id="content" rows="5" cols="50" placeholder="محتوى الفاتورة"></textarea><br><br>
+  <button onclick="saveInvoice()">💾 حفظ</button>
+  <hr>
+  <h2>عرض فواتير حسب التاريخ</h2>
+  <button onclick="getInvoices()">📂 عرض الفواتير</button>
+  <div id="results"></div>
+
+  <script>
+    let db;
+
+    const request = indexedDB.open("InvoicesDB", 1);
+
+    request.onupgradeneeded = function (e) {
+      db = e.target.result;
+      const store = db.createObjectStore("invoices", { keyPath: "id", autoIncrement: true });
+      store.createIndex("dateIndex", ["year", "month", "day"], { unique: false });
+    };
+
+    request.onsuccess = function (e) {
+      db = e.target.result;
+      console.log("✅ قاعدة البيانات جاهزة");
+    };
+
+    function saveInvoice() {
+      if (!db) return alert("قاعدة البيانات لم تجهز بعد، انتظر قليلًا");
+
+      const year = document.getElementById("year").value;
+      const month = document.getElementById("month").value;
+      const day = document.getElementById("day").value;
+      const name = document.getElementById("name").value;
+      const content = document.getElementById("content").value;
+
+      const tx = db.transaction("invoices", "readwrite");
+      const store = tx.objectStore("invoices");
+
+      store.add({ year, month, day, name, content });
+
+      tx.oncomplete = () => alert("✅ تم حفظ الفاتورة");
+      tx.onerror = () => alert("❌ فشل في الحفظ");
+    }
+
+    function getInvoices() {
+      if (!db) return alert("قاعدة البيانات لم تجهز بعد");
+
+      const year = document.getElementById("year").value;
+      const month = document.getElementById("month").value;
+      const day = document.getElementById("day").value;
+
+      const tx = db.transaction("invoices", "readonly");
+      const store = tx.objectStore("invoices");
+      const index = store.index("dateIndex");
+      const request = index.getAll([year, month, day]);
+
+      request.onsuccess = () => {
+        const invoices = request.result;
+        const container = document.getElementById("results");
+        container.innerHTML = "";
+
+        if (invoices.length === 0) {
+          container.innerText = "📭 لا توجد فواتير في هذا اليوم";
+          return;
+        }
+
+        invoices.forEach(i => {
+          const blob = new Blob([i.content], { type: "text/plain" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = i.name;
+          a.textContent = "⬇️ تحميل " + i.name;
+          a.style.display = "block";
+          container.appendChild(a);
+        });
+      };
+    }
+  </script>
+</body>
+</html>
